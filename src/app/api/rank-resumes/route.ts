@@ -3,30 +3,60 @@ import { GoogleGenAI } from '@google/genai';
 
 // Retrieve active and fallback API keys from environment
 const getApiKeys = () => {
-  return [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-  ].filter(Boolean) as string[];
+  const keys: string[] = [];
+  if (process.env.GEMINI_API_KEY) keys.push(process.env.GEMINI_API_KEY);
+  for (let i = 2; i <= 20; i++) {
+    const k = process.env[`GEMINI_API_KEY_${i}`];
+    if (k) keys.push(k);
+  }
+  return keys.filter(Boolean);
 };
 
 function extractSocialsFromText(text: string, candidateName?: string) {
   const githubMatch = text.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]+)/i) ||
+                      text.match(/(?:https?:\/\/)?([a-zA-Z0-9_-]+\.github\.io)/i) ||
                       text.match(/github(?::|\s+)?([a-zA-Z0-9_-]+)/i);
-  const linkedinMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9_-]+)/i) ||
-                        text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/pub\/([a-zA-Z0-9_-]+)/i) ||
-                        text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/company\/([a-zA-Z0-9_-]+)/i);
-  const portfolioMatch = text.match(/(?:https?:\/\/)?([a-zA-Z0-9_-]+\.(?:vercel\.app|netlify\.app|github\.io|dev|me|io))/i);
-  const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
 
-  const github = githubMatch ? (githubMatch[0].startsWith('http') ? githubMatch[0] : `https://github.com/${githubMatch[1]}`) : '';
-  const linkedin = linkedinMatch ? (linkedinMatch[0].startsWith('http') ? linkedinMatch[0] : `https://linkedin.com/in/${linkedinMatch[1]}`) : '';
+  const linkedinMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/(?:in|pub|company)\/([a-zA-Z0-9_-]+)/i) ||
+                        text.match(/linkedin(?::|\s+)?([a-zA-Z0-9_-]+)/i);
+
+  const portfolioMatch = text.match(/(?:https?:\/\/)?([a-zA-Z0-9_-]+\.(?:vercel\.app|netlify\.app|dev|me|io|portfolio|site))/i);
+  const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+
+  let github = '';
+  let githubUsername = '';
+  if (githubMatch) {
+    if (githubMatch[0].includes('github.io')) {
+      github = githubMatch[0].startsWith('http') ? githubMatch[0] : `https://${githubMatch[0]}`;
+      githubUsername = githubMatch[1].split('.')[0];
+    } else if (githubMatch[0].includes('github.com')) {
+      github = githubMatch[0].startsWith('http') ? githubMatch[0] : `https://${githubMatch[0]}`;
+      githubUsername = githubMatch[1];
+    } else if (githubMatch[1]) {
+      github = `https://github.com/${githubMatch[1]}`;
+      githubUsername = githubMatch[1];
+    }
+  }
+
+  let linkedin = '';
+  if (linkedinMatch) {
+    if (linkedinMatch[0].includes('linkedin.com')) {
+      linkedin = linkedinMatch[0].startsWith('http') ? linkedinMatch[0] : `https://${linkedinMatch[0]}`;
+    } else if (linkedinMatch[1]) {
+      linkedin = `https://linkedin.com/in/${linkedinMatch[1]}`;
+    }
+  }
+
+  let portfolio = '';
+  if (portfolioMatch) {
+    portfolio = portfolioMatch[0].startsWith('http') ? portfolioMatch[0] : `https://${portfolioMatch[0]}`;
+  }
 
   return {
     github,
-    githubUsername: githubMatch ? githubMatch[1] : (candidateName ? candidateName.toLowerCase().replace(/\s+/g, '') : ''),
+    githubUsername,
     linkedin,
-    portfolio: portfolioMatch ? (portfolioMatch[0].startsWith('http') ? portfolioMatch[0] : `https://${portfolioMatch[0]}`) : '',
+    portfolio,
     email: emailMatch ? emailMatch[1] : ''
   };
 }
@@ -256,8 +286,18 @@ for (let attempt = 0; attempt < keys.length; attempt++) {
             c.socialLinks.portfolio = harvested.portfolio;
           }
 
-          // If GitHub URL was harvested, ensure gitHubHealth flags match
-          if (c.socialLinks.github && c.socialLinks.github.trim() !== '') {
+          // If no GitHub URL exists, strictly force hasGithub = false
+          if (!c.socialLinks.github || c.socialLinks.github.trim() === '' || c.socialLinks.github.toLowerCase() === 'none') {
+            c.socialLinks.github = '';
+            c.gitHubHealth = {
+              hasGithub: false,
+              username: '',
+              healthScore: 0,
+              topLanguages: [],
+              commitConsistency: 'No GitHub Profile Linked',
+              verifiedClaims: []
+            };
+          } else {
             if (!c.gitHubHealth || !c.gitHubHealth.hasGithub) {
               c.gitHubHealth = {
                 hasGithub: true,
