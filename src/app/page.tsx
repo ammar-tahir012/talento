@@ -47,6 +47,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard'>('home');
   const [menuOpen, setMenuOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [aboutUsOpen, setAboutUsOpen] = useState(false);
   
   // Recruiter settings states
   const [jobDescription, setJobDescription] = useState(
@@ -188,7 +189,7 @@ export default function Home() {
 
   // Call Gemini Evaluation
   const triggerEvaluation = async (voiceQueryOverride?: string) => {
-    if (parsedResumes.length === 0) return;
+    if (parsedResumes.length === 0 || isEvaluating) return;
     setIsEvaluating(true);
     stopSpeaking();
     
@@ -242,7 +243,7 @@ export default function Home() {
   const navLinks = [
     { label: 'Home', active: activeTab === 'home', onClick: () => { setActiveTab('home'); setMenuOpen(false); } },
     { label: 'ATS Dashboard', active: activeTab === 'dashboard', onClick: () => { setActiveTab('dashboard'); setMenuOpen(false); } },
-    { label: 'How It Works', onClick: () => { setInstructionsOpen(true); setMenuOpen(false); } },
+    { label: 'About Us', onClick: () => { setAboutUsOpen(true); setMenuOpen(false); } },
   ];
 
   return (
@@ -291,13 +292,6 @@ export default function Home() {
         {/* CTAs (right) */}
         <div className="hidden md:flex items-center gap-3">
           <button 
-            onClick={() => setInstructionsOpen(true)}
-            className="liquid-glass text-white text-xs font-medium px-4 py-2 rounded-full hover:bg-white/5 transition-colors cursor-pointer flex items-center gap-1.5"
-          >
-            <HelpCircle size={14} />
-            Instructions
-          </button>
-          <button 
             onClick={() => setActiveTab(activeTab === 'home' ? 'dashboard' : 'home')}
             className="bg-white text-black text-xs font-semibold px-4 py-2 rounded-full hover:bg-white/90 transition-colors cursor-pointer"
           >
@@ -328,16 +322,10 @@ export default function Home() {
             </button>
           ))}
           
-          <div className="flex gap-2 mt-2 pt-3 border-t border-white/10">
-            <button 
-              onClick={() => { setInstructionsOpen(true); setMenuOpen(false); }}
-              className="flex-1 liquid-glass text-white text-xs font-medium py-3 rounded-full hover:bg-white/5 transition-colors cursor-pointer text-center"
-            >
-              Instructions
-            </button>
+          <div className="mt-2 pt-3 border-t border-white/10">
             <button 
               onClick={() => { setActiveTab(activeTab === 'home' ? 'dashboard' : 'home'); setMenuOpen(false); }}
-              className="flex-1 bg-white text-black text-xs font-semibold py-3 rounded-full hover:bg-white/90 transition-colors cursor-pointer text-center"
+              className="w-full bg-white text-black text-xs font-semibold py-3 rounded-full hover:bg-white/90 transition-colors cursor-pointer text-center"
             >
               {activeTab === 'home' ? 'Begin Now' : 'Show Landing'}
             </button>
@@ -355,7 +343,7 @@ export default function Home() {
       >
         <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/70 text-[10px] uppercase tracking-wider font-semibold mb-4">
           <Sparkle size={10} className="text-white animate-pulse" />
-          Powered by Gemini 2.5 Flash
+          Powered by Talento AI Engine
         </div>
         <h1 className="text-white text-4xl sm:text-5xl lg:text-6xl font-semibold leading-tight tracking-tight mb-4">
           Recruit Smarter, Build Teams Every Day
@@ -374,9 +362,10 @@ export default function Home() {
           </button>
           <button 
             onClick={() => setInstructionsOpen(true)}
-            className="liquid-glass text-white text-sm font-medium px-6 py-3.5 rounded-full hover:bg-white/5 transition-colors cursor-pointer"
+            className="liquid-glass text-white text-sm font-medium px-5 py-3.5 rounded-full hover:bg-white/5 transition-colors cursor-pointer flex items-center gap-1.5"
           >
-            Discover How
+            <HelpCircle size={15} />
+            Instructions
           </button>
         </div>
       </div>
@@ -393,7 +382,7 @@ export default function Home() {
         <div className="w-full h-full p-4 md:p-6 px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden bg-black/45 backdrop-blur-[2px] items-stretch">
           
           {/* Left Controls (Columns 1-5) */}
-          <div className="lg:col-span-5 flex flex-col gap-3.5 h-full overflow-hidden">
+          <div className="lg:col-span-5 flex flex-col gap-3.5 max-h-full overflow-hidden">
             
             {/* Criteria */}
             <div className="liquid-glass rounded-2xl p-4 flex flex-col gap-2.5 flex-1 min-h-0">
@@ -426,33 +415,52 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Drag Zone */}
-              <div
-                onDragEnter={handleDrag}
-                onDragOver={handleDrag}
-                onDragLeave={handleDrag}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border border-dashed rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5 flex-1 min-h-[50px] ${
-                  dragActive 
-                    ? 'border-white bg-white/5' 
-                    : 'border-white/10 hover:border-white/30 bg-white/2'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={handleFileInput}
-                />
-                <Upload size={16} className="text-white/50" />
-                <div>
-                  <p className="text-xs font-medium text-white/80">Bulk drop resume PDFs here</p>
-                  <p className="text-[10px] text-white/40 mt-0.5">or click to browse files</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="application/pdf"
+                className="hidden"
+                onChange={handleFileInput}
+              />
+
+              {/* Drag Zone: Large when empty, compact when files exist */}
+              {uploadedFiles.length === 0 ? (
+                <div
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border border-dashed rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5 flex-1 min-h-[60px] ${
+                    dragActive 
+                      ? 'border-white bg-white/5' 
+                      : 'border-white/10 hover:border-white/30 bg-white/2'
+                  }`}
+                >
+                  <Upload size={18} className="text-white/50" />
+                  <div>
+                    <p className="text-xs font-medium text-white/80">Bulk drop resume PDFs here</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">or click to browse files</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border border-dashed rounded-xl py-2 px-3 text-center cursor-pointer transition flex items-center justify-center gap-2 shrink-0 ${
+                    dragActive 
+                      ? 'border-white bg-white/5' 
+                      : 'border-white/10 hover:border-white/20 bg-white/1'
+                  }`}
+                >
+                  <Upload size={12} className="text-white/50 shrink-0" />
+                  <span className="text-[10px] font-medium text-white/60">Drag / click here to add more CVs</span>
+                </div>
+              )}
 
               {/* PDF Progress */}
               {isParsing && (
@@ -464,7 +472,7 @@ export default function Home() {
 
               {/* Files */}
               {uploadedFiles.length > 0 && (
-                <div className="max-h-24 overflow-y-auto flex flex-col gap-1.5 pr-1 shrink-0 no-scrollbar">
+                <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 pr-1 no-scrollbar min-h-0">
                   {uploadedFiles.map((upload) => (
                     <div 
                       key={upload.id}
@@ -560,7 +568,7 @@ export default function Home() {
                     </p>
                   ) : (
                     <p className="text-[11px] text-white/40 mt-0.5">
-                      Toggle the microphone and instruct Gemini (e.g., <span className="italic text-white/60">"AWS matching profiles filter karo"</span>).
+                      Toggle the microphone and instruct Talento (e.g., <span className="italic text-white/60">"AWS matching profiles filter karo"</span>).
                     </p>
                   )}
                 </div>
@@ -632,7 +640,7 @@ export default function Home() {
                     <Sparkles size={13} />
                   </div>
                   <div>
-                    <h4 className="text-[9px] font-bold text-white/50 tracking-wider uppercase">Gemini Executive Summary</h4>
+                    <h4 className="text-[9px] font-bold text-white/50 tracking-wider uppercase">Talento Executive Summary</h4>
                     <p className="text-xs text-white/90 mt-0.5 leading-relaxed font-medium">{summaryResponse}</p>
                   </div>
                 </div>
@@ -643,7 +651,7 @@ export default function Home() {
                 {isEvaluating ? (
                   <div className="h-full flex flex-col items-center justify-center gap-3 py-10">
                     <div className="h-10 w-10 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                    <p className="text-xs text-white/60">Gemini is processing candidate rankings...</p>
+                    <p className="text-xs text-white/60">Talento is processing candidate rankings...</p>
                   </div>
                 ) : candidates.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-white/5 bg-white/1 rounded-xl gap-3">
@@ -881,6 +889,50 @@ export default function Home() {
               className="w-full bg-white hover:bg-white/90 text-black py-2.5 rounded-xl text-xs font-bold tracking-wide uppercase transition mt-2 cursor-pointer"
             >
               Got It
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* About Us Modal Overlay */}
+      {aboutUsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-md liquid-glass rounded-2xl p-6 flex flex-col gap-5 relative animate-in fade-in-50 zoom-in-95 duration-200">
+            <button 
+              onClick={() => setAboutUsOpen(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg border border-white/10 text-white/40 hover:text-white transition cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+            
+            <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+              <Info size={18} className="text-white" />
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">About Talento</h3>
+            </div>
+
+            <div className="flex flex-col gap-4 text-xs text-white/80 leading-relaxed">
+              <p className="text-white/70">
+                Talento is an intelligent, voice-first HR Applicant Tracking System (ATS) platform designed for recruiters to bulk parse candidate resumes client-side and interact with an AI recruiter co-pilot in natural English or Urdu.
+              </p>
+              
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex flex-col gap-2">
+                <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Lead Developer</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-sm">Ammar Tahir</span>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-white/10 text-white/80 font-medium">Full-Stack AI Engineer</span>
+                </div>
+                <div className="flex items-center gap-2 text-white/70 mt-1 pt-2 border-t border-white/5">
+                  <span className="font-medium text-white/90 text-xs">Email:</span>
+                  <a href="mailto:ammartahir444@gmail.com" className="text-white hover:underline font-mono text-xs">ammartahir444@gmail.com</a>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setAboutUsOpen(false)}
+              className="w-full bg-white hover:bg-white/90 text-black py-2.5 rounded-xl text-xs font-bold tracking-wide uppercase transition mt-1 cursor-pointer"
+            >
+              Close
             </button>
           </div>
         </div>
