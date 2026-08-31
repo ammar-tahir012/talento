@@ -40,7 +40,18 @@ export function usePdfParser() {
           .filter((str) => str.trim().length > 0)
           .join(' ');
           
-        fullText += pageText + '\n';
+        // Extract embedded hyperlink annotations (Word/Canva links behind text/icons)
+        let linkUrls: string[] = [];
+        try {
+          const annotations = await page.getAnnotations();
+          linkUrls = annotations
+            .filter((anno: any) => (anno.subtype === 'Link' || anno.type === 'Link') && (anno.url || anno.unsafeUrl))
+            .map((anno: any) => anno.url || anno.unsafeUrl);
+        } catch (annoErr) {
+          // Non-fatal annotation extraction fallback
+        }
+
+        fullText += pageText + (linkUrls.length > 0 ? `\n[Embedded Links: ${linkUrls.join(' ')}]` : '') + '\n';
       }
       
       return fullText.trim();

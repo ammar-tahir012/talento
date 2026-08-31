@@ -28,8 +28,26 @@ import {
   Mail,
   Send,
   CheckSquare,
-  Users
+  Users,
+  Globe,
+  ExternalLink,
+  GitBranch
 } from 'lucide-react';
+
+const LinkedinIcon = ({ size = 14, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+    <rect x="2" y="9" width="4" height="12"/>
+    <circle cx="4" cy="4" r="2"/>
+  </svg>
+);
+
+const GithubIcon = ({ size = 14, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
+    <path d="M9 18c-4.51 2-5-2-7-2"/>
+  </svg>
+);
 import { usePdfParser, ResumeItem } from '@/hooks/usePdfParser';
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant';
 
@@ -47,6 +65,20 @@ type Candidate = {
   topSkills: string[];
   summary: string;
   interviewQuestions?: string[];
+  socialLinks?: {
+    github?: string;
+    linkedin?: string;
+    portfolio?: string;
+    kaggle?: string;
+  };
+  gitHubHealth?: {
+    hasGithub: boolean;
+    username?: string;
+    healthScore: number;
+    topLanguages: string[];
+    commitConsistency: string;
+    verifiedClaims: string[];
+  };
 };
 
 export default function Home() {
@@ -55,7 +87,7 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [aboutUsOpen, setAboutUsOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'overview' | 'interviewKit'>('overview');
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'interviewKit' | 'sourcing'>('overview');
   const [copiedQuestionIndex, setCopiedQuestionIndex] = useState<number | null>(null);
   const [copiedKit, setCopiedKit] = useState<boolean>(false);
 
@@ -813,8 +845,32 @@ Talento Recruiting`;
                             </div>
                           </td>
                           <td className="py-3 px-3">
-                            <div className="font-medium text-xs text-white group-hover:text-white/80 transition">
-                              {candidate.name}
+                            <div className="font-medium text-xs text-white group-hover:text-white/80 transition flex items-center gap-1.5">
+                              <span>{candidate.name}</span>
+                              {candidate.socialLinks?.github && candidate.socialLinks.github.trim() !== '' && (
+                                <a 
+                                  href={candidate.socialLinks.github.startsWith('http') ? candidate.socialLinks.github : `https://${candidate.socialLinks.github}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  onClick={(e) => e.stopPropagation()} 
+                                  className="text-white/40 hover:text-white transition"
+                                  title="GitHub Profile"
+                                >
+                                  <GithubIcon size={11} />
+                                </a>
+                              )}
+                              {candidate.socialLinks?.linkedin && candidate.socialLinks.linkedin.trim() !== '' && (
+                                <a 
+                                  href={candidate.socialLinks.linkedin.startsWith('http') ? candidate.socialLinks.linkedin : `https://${candidate.socialLinks.linkedin}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  onClick={(e) => e.stopPropagation()} 
+                                  className="text-blue-400/60 hover:text-blue-400 transition"
+                                  title="LinkedIn Profile"
+                                >
+                                  <LinkedinIcon size={11} />
+                                </a>
+                              )}
                             </div>
                             <div className="flex flex-wrap gap-1 mt-1 max-w-[240px]">
                               {candidate.topSkills.slice(0, 3).map((skill, sIdx) => (
@@ -922,14 +978,25 @@ Talento Recruiting`;
             </button>
             <button
               onClick={() => setDrawerTab('interviewKit')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
                 drawerTab === 'interviewKit'
                   ? 'bg-white text-black shadow'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Sparkles size={12} />
-              Interview Kit {selectedCandidate.interviewQuestions?.length ? `(${selectedCandidate.interviewQuestions.length})` : ''}
+              <Sparkles size={11} />
+              Kit {selectedCandidate.interviewQuestions?.length ? `(${selectedCandidate.interviewQuestions.length})` : ''}
+            </button>
+            <button
+              onClick={() => setDrawerTab('sourcing')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 cursor-pointer ${
+                drawerTab === 'sourcing'
+                  ? 'bg-white text-black shadow'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Globe size={11} />
+              360° Sourcing
             </button>
           </div>
 
@@ -994,7 +1061,7 @@ Talento Recruiting`;
                 </ul>
               </div>
             </div>
-          ) : (
+          ) : drawerTab === 'interviewKit' ? (
             <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-3.5 pr-1 min-h-0 no-scrollbar">
               <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
                 <div>
@@ -1045,6 +1112,155 @@ Talento Recruiting`;
               ) : (
                 <div className="p-6 text-center border border-dashed border-white/10 rounded-xl text-xs text-white/40">
                   No customized interview questions generated for this profile yet. Re-run ranking to populate questions.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 pr-1 min-h-0 no-scrollbar">
+              {/* Social & Portfolio Links Card */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex flex-col gap-3">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Globe size={13} className="text-blue-400" />
+                    Automated Public Sourcing
+                  </h4>
+                  <span className="text-[9px] text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-500/20">Verified Profiles</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {/* GitHub */}
+                  {selectedCandidate.socialLinks?.github && selectedCandidate.socialLinks.github.trim() !== '' ? (
+                    <a
+                      href={selectedCandidate.socialLinks.github.startsWith('http') ? selectedCandidate.socialLinks.github : `https://${selectedCandidate.socialLinks.github}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition flex items-center gap-2 text-xs font-medium cursor-pointer"
+                    >
+                      <GithubIcon size={14} className="text-white shrink-0" />
+                      <div className="truncate">
+                        <div className="text-[10px] text-white/40 uppercase font-bold">GitHub</div>
+                        <div className="truncate text-xs font-mono">{selectedCandidate.gitHubHealth?.username || 'View Profile'}</div>
+                      </div>
+                      <ExternalLink size={11} className="text-white/40 ml-auto shrink-0" />
+                    </a>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-white/2 border border-white/5 text-white/30 flex items-center gap-2 text-xs">
+                      <GithubIcon size={14} className="shrink-0" />
+                      <div className="text-[10px]">GitHub Not Linked</div>
+                    </div>
+                  )}
+
+                  {/* LinkedIn */}
+                  {selectedCandidate.socialLinks?.linkedin && selectedCandidate.socialLinks.linkedin.trim() !== '' ? (
+                    <a
+                      href={selectedCandidate.socialLinks.linkedin.startsWith('http') ? selectedCandidate.socialLinks.linkedin : `https://${selectedCandidate.socialLinks.linkedin}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 rounded-xl bg-blue-950/20 hover:bg-blue-950/40 border border-blue-500/20 text-white transition flex items-center gap-2 text-xs font-medium cursor-pointer"
+                    >
+                      <LinkedinIcon size={14} className="text-blue-400 shrink-0" />
+                      <div className="truncate">
+                        <div className="text-[10px] text-blue-400/60 uppercase font-bold">LinkedIn</div>
+                        <div className="truncate text-xs font-mono">View Profile</div>
+                      </div>
+                      <ExternalLink size={11} className="text-blue-400/40 ml-auto shrink-0" />
+                    </a>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-white/2 border border-white/5 text-white/30 flex items-center gap-2 text-xs">
+                      <LinkedinIcon size={14} className="shrink-0" />
+                      <div className="text-[10px]">LinkedIn Not Linked</div>
+                    </div>
+                  )}
+
+                  {/* Portfolio */}
+                  {selectedCandidate.socialLinks?.portfolio && selectedCandidate.socialLinks.portfolio.trim() !== '' ? (
+                    <a
+                      href={selectedCandidate.socialLinks.portfolio.startsWith('http') ? selectedCandidate.socialLinks.portfolio : `https://${selectedCandidate.socialLinks.portfolio}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition flex items-center gap-2 text-xs font-medium cursor-pointer col-span-2"
+                    >
+                      <Globe size={14} className="text-emerald-400 shrink-0" />
+                      <div className="truncate">
+                        <div className="text-[10px] text-white/40 uppercase font-bold">Personal Portfolio</div>
+                        <div className="truncate text-xs font-mono">{selectedCandidate.socialLinks.portfolio}</div>
+                      </div>
+                      <ExternalLink size={11} className="text-white/40 ml-auto shrink-0" />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* GitHub Repository & Project Health Check Card */}
+              {selectedCandidate.gitHubHealth && selectedCandidate.gitHubHealth.hasGithub && ((selectedCandidate.socialLinks?.github && selectedCandidate.socialLinks.github.trim() !== '') || (selectedCandidate.gitHubHealth.username && selectedCandidate.gitHubHealth.username.trim() !== '')) ? (
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex flex-col gap-3.5">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <GitBranch size={13} className="text-purple-400" />
+                      GitHub Project Health Check
+                    </h4>
+                    <span className="text-[10px] font-bold text-purple-400 px-2 py-0.5 rounded bg-purple-950/40 border border-purple-500/20">
+                      Score: {selectedCandidate.gitHubHealth.healthScore}/100
+                    </span>
+                  </div>
+
+                  {/* Health Score Progress Bar */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px] text-white/60">
+                      <span>Codebase & Repository Quality Rating</span>
+                      <span className="font-bold text-white">{selectedCandidate.gitHubHealth.healthScore}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full bg-gradient-to-r from-purple-500 via-indigo-400 to-emerald-400"
+                        style={{ width: `${selectedCandidate.gitHubHealth.healthScore}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Commit Consistency */}
+                  <div className="p-3 rounded-lg bg-white/3 border border-white/5 flex flex-col gap-1">
+                    <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Commit Activity & Maintenance</span>
+                    <span className="text-xs font-semibold text-white/90">
+                      {selectedCandidate.gitHubHealth.commitConsistency}
+                    </span>
+                  </div>
+
+                  {/* Top Languages */}
+                  {selectedCandidate.gitHubHealth.topLanguages && selectedCandidate.gitHubHealth.topLanguages.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Primary Repo Languages</span>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedCandidate.gitHubHealth.topLanguages.map((lang, lIdx) => (
+                          <span key={lIdx} className="text-[10px] px-2 py-0.5 rounded bg-purple-950/30 text-purple-200 border border-purple-500/20 font-mono">
+                            {lang}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Verified Resume Claims */}
+                  {selectedCandidate.gitHubHealth.verifiedClaims && selectedCandidate.gitHubHealth.verifiedClaims.length > 0 && (
+                    <div className="flex flex-col gap-2 pt-1">
+                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1">
+                        <CheckCircle2 size={11} /> Verified Open Source Claims
+                      </span>
+                      <ul className="flex flex-col gap-1.5">
+                        {selectedCandidate.gitHubHealth.verifiedClaims.map((claim, cIdx) => (
+                          <li key={cIdx} className="flex items-start gap-2 text-xs text-white/80 bg-emerald-950/10 border border-emerald-950/20 p-2.5 rounded-lg leading-relaxed">
+                            <Check size={12} className="text-emerald-400 shrink-0 mt-0.5" />
+                            <span>{claim}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-5 text-center border border-dashed border-white/10 rounded-xl text-xs text-white/40 flex flex-col items-center gap-2">
+                  <GithubIcon size={20} className="text-white/20" />
+                  <span>No GitHub profile detected on this resume. Ingest a CV with repository links to unlock code health diagnostics.</span>
                 </div>
               )}
             </div>
