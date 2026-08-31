@@ -23,7 +23,12 @@ import {
   Info,
   HelpCircle,
   ArrowRight,
-  Sparkle
+  Sparkle,
+  Copy,
+  Mail,
+  Send,
+  CheckSquare,
+  Users
 } from 'lucide-react';
 import { usePdfParser, ResumeItem } from '@/hooks/usePdfParser';
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant';
@@ -33,6 +38,7 @@ const BG_VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH
 type Candidate = {
   id: string;
   name: string;
+  email?: string;
   rank: number;
   atsScore: number;
   yearsOfExperience: number;
@@ -40,6 +46,7 @@ type Candidate = {
   cons: string[];
   topSkills: string[];
   summary: string;
+  interviewQuestions?: string[];
 };
 
 export default function Home() {
@@ -48,6 +55,17 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [aboutUsOpen, setAboutUsOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'interviewKit'>('overview');
+  const [copiedQuestionIndex, setCopiedQuestionIndex] = useState<number | null>(null);
+  const [copiedKit, setCopiedKit] = useState<boolean>(false);
+
+  // Batch action & Outreach automation states
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [outreachModalOpen, setOutreachModalOpen] = useState(false);
+  const [outreachTemplate, setOutreachTemplate] = useState<'first_round' | 'tech_screen' | 'rejection'>('first_round');
+  const [selectedOutreachCandidateId, setSelectedOutreachCandidateId] = useState<string | null>(null);
+  const [copiedDraft, setCopiedDraft] = useState(false);
+  const [copiedBatch, setCopiedBatch] = useState(false);
   
   // Recruiter settings states
   const [jobDescription, setJobDescription] = useState(
@@ -185,6 +203,83 @@ export default function Home() {
     setSummaryResponse('');
     setSelectedCandidate(null);
     stopSpeaking();
+  };
+
+  const copyToClipboard = (text: string, index?: number) => {
+    navigator.clipboard.writeText(text);
+    if (index !== undefined) {
+      setCopiedQuestionIndex(index);
+      setTimeout(() => setCopiedQuestionIndex(null), 2000);
+    } else {
+      setCopiedKit(true);
+      setTimeout(() => setCopiedKit(false), 2000);
+    }
+  };
+
+  const toggleSelectCandidate = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedCandidateIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllCandidates = () => {
+    if (selectedCandidateIds.length === candidates.length) {
+      setSelectedCandidateIds([]);
+    } else {
+      setSelectedCandidateIds(candidates.map(c => c.id));
+    }
+  };
+
+  const generateOutreachEmail = (candidate: Candidate, template: 'first_round' | 'tech_screen' | 'rejection') => {
+    const candidateEmail = (candidate.email && candidate.email.trim().includes('@'))
+      ? candidate.email.trim()
+      : `${candidate.name.toLowerCase().replace(/\s+/g, '.')}@gmail.com`;
+    let subject = '';
+    let body = '';
+
+    if (template === 'first_round') {
+      subject = `Interview Invitation: Senior Frontend Developer Role - Talento`;
+      body = `Hi ${candidate.name},
+
+Thank you for your application! Our hiring team reviewed your background and was impressed with your experience in ${candidate.topSkills.slice(0, 3).join(', ')}.
+
+We would love to invite you for a 30-minute first-round interview to discuss your experience and learn more about your past projects.
+
+Please let us know your availability over the next few business days.
+
+Best regards,
+Ammar Tahir
+Talento Recruitment Team`;
+    } else if (template === 'tech_screen') {
+      subject = `Technical Screening Assessment: Senior Frontend Developer - Talento`;
+      body = `Hi ${candidate.name},
+
+Following our review of your profile, we are excited to move forward with your application.
+
+As a next step, we would like to schedule a 45-minute technical screening session focusing on frontend architecture, React performance, and modern web applications.
+
+Please reply with 2-3 preferred timeslots this week.
+
+Best regards,
+Ammar Tahir
+Talento Hiring Team`;
+    } else {
+      subject = `Application Update: Senior Frontend Developer - Talento`;
+      body = `Hi ${candidate.name},
+
+Thank you for taking the time to share your background with us for the Senior Frontend Developer position.
+
+While your experience in ${candidate.topSkills.slice(0, 2).join(' and ')} is commendable, we have decided to move forward with candidates whose current skillsets align more closely with our immediate role requirements.
+
+We will keep your profile in our talent pool for future opportunities that match your background. We wish you the best in your job search!
+
+Best regards,
+Ammar Tahir
+Talento Recruiting`;
+    }
+
+    return { candidateEmail, subject, body };
   };
 
   // Call Gemini Evaluation
@@ -670,7 +765,20 @@ export default function Home() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-white/5 text-[9px] text-white/40 uppercase tracking-widest font-bold">
-                        <th className="py-2.5 px-2 text-center w-12">Rank</th>
+                        <th className="py-2.5 px-2 text-center w-8">
+                          <button 
+                            onClick={toggleSelectAllCandidates}
+                            className="p-1 text-white/50 hover:text-white transition cursor-pointer"
+                            title="Select / Deselect All Candidates"
+                          >
+                            {selectedCandidateIds.length > 0 && selectedCandidateIds.length === candidates.length ? (
+                              <CheckSquare size={13} className="text-white" />
+                            ) : (
+                              <Square size={13} />
+                            )}
+                          </button>
+                        </th>
+                        <th className="py-2.5 px-2 text-center w-10">Rank</th>
                         <th className="py-2.5 px-3">Profile Info</th>
                         <th className="py-2.5 px-3 w-36">Match Score</th>
                         <th className="py-2.5 px-2 text-center w-16">Exp</th>
@@ -683,9 +791,18 @@ export default function Home() {
                           key={candidate.id}
                           onClick={() => setSelectedCandidate(candidate)}
                           className={`group border-b border-white/5 hover:bg-white/3 transition cursor-pointer ${
-                            selectedCandidate?.id === candidate.id ? 'bg-white/5' : ''
+                            selectedCandidate?.id === candidate.id || selectedCandidateIds.includes(candidate.id) ? 'bg-white/5' : ''
                           }`}
                         >
+                          <td className="py-3 px-2 text-center" onClick={(e) => toggleSelectCandidate(candidate.id, e)}>
+                            <button className="p-1 text-white/40 hover:text-white transition cursor-pointer">
+                              {selectedCandidateIds.includes(candidate.id) ? (
+                                <CheckSquare size={13} className="text-emerald-400" />
+                              ) : (
+                                <Square size={13} />
+                              )}
+                            </button>
+                          </td>
                           <td className="py-3 px-2 text-center">
                             <div className={`h-5 w-5 mx-auto rounded-full flex items-center justify-center font-bold text-[10px] ${
                               candidate.rank === 1 
@@ -735,6 +852,34 @@ export default function Home() {
                   </table>
                 )}
               </div>
+
+              {/* Floating Batch Action Bar */}
+              {selectedCandidateIds.length > 0 && (
+                <div className="mt-3 p-3 rounded-xl bg-white/10 border border-white/15 backdrop-blur-xl flex items-center justify-between animate-in fade-in-50 slide-in-from-bottom-2 duration-200 shrink-0">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                    <Users size={14} className="text-amber-400" />
+                    <span>{selectedCandidateIds.length} Candidate{selectedCandidateIds.length > 1 ? 's' : ''} Shortlisted</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedOutreachCandidateId(selectedCandidateIds[0]);
+                        setOutreachModalOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-white text-black text-xs font-bold hover:bg-white/90 transition flex items-center gap-1.5 cursor-pointer shadow-lg"
+                    >
+                      <Mail size={13} />
+                      Generate Outreach Drafts ({selectedCandidateIds.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedCandidateIds([])}
+                      className="px-2.5 py-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/5 text-xs transition cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -757,72 +902,153 @@ export default function Home() {
             </div>
             <button 
               onClick={() => setSelectedCandidate(null)}
-              className="p-1 rounded-lg border border-white/10 text-white/50 hover:text-white transition"
+              className="p-1 rounded-lg border border-white/10 text-white/50 hover:text-white transition cursor-pointer"
             >
               <X size={14} />
             </button>
           </div>
 
-          {/* Drawer Body Scroll */}
-          <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-5 pr-1 min-h-0">
-            {/* Quick Profile Summary */}
-            <div className="p-3.5 rounded-xl bg-white/3 border border-white/5 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Match Assessment</span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border border-white/5 ${getScoreColor(selectedCandidate.atsScore)}`}>
-                  {selectedCandidate.atsScore}% Fit
-                </span>
-              </div>
-              <p className="text-xs text-white/80 leading-relaxed italic">
-                &ldquo;{selectedCandidate.summary}&rdquo;
-              </p>
-            </div>
-
-            {/* Skills */}
-            <div className="flex flex-col gap-1.5">
-              <h4 className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Extracted Stack</h4>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {selectedCandidate.topSkills.map((skill, sIdx) => (
-                  <span 
-                    key={sIdx} 
-                    className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-white/80 border border-white/5"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Pros */}
-            <div className="flex flex-col gap-2">
-              <h4 className="text-[9px] font-bold text-emerald-400/90 uppercase tracking-widest flex items-center gap-1">
-                <CheckCircle2 size={12} /> Key Highlights
-              </h4>
-              <ul className="flex flex-col gap-1.5">
-                {selectedCandidate.pros.map((pro, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-xs text-white/80 bg-emerald-950/5 border border-emerald-950/10 p-2.5 rounded-lg leading-relaxed">
-                    <Check size={12} className="text-emerald-400 shrink-0 mt-0.5" />
-                    <span>{pro}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Cons */}
-            <div className="flex flex-col gap-2">
-              <h4 className="text-[9px] font-bold text-rose-400/90 uppercase tracking-widest flex items-center gap-1">
-                <AlertTriangle size={12} /> Observed Gaps
-              </h4>
-              <ul className="flex flex-col gap-1.5">
-                {selectedCandidate.cons.map((con, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-xs text-white/80 bg-rose-950/5 border border-rose-950/10 p-2.5 rounded-lg leading-relaxed">
-                    <X size={12} className="text-rose-400 shrink-0 mt-0.5" />
-                    <span>{con}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {/* Drawer Sub Navigation Pills */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10 mt-3.5 shrink-0">
+            <button
+              onClick={() => setDrawerTab('overview')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                drawerTab === 'overview'
+                  ? 'bg-white text-black shadow'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              onClick={() => setDrawerTab('interviewKit')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                drawerTab === 'interviewKit'
+                  ? 'bg-white text-black shadow'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Sparkles size={12} />
+              Interview Kit {selectedCandidate.interviewQuestions?.length ? `(${selectedCandidate.interviewQuestions.length})` : ''}
+            </button>
           </div>
+
+          {/* Drawer Body Viewport */}
+          {drawerTab === 'overview' ? (
+            <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-5 pr-1 min-h-0">
+              {/* Quick Profile Summary */}
+              <div className="p-3.5 rounded-xl bg-white/3 border border-white/5 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Match Assessment</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border border-white/5 ${getScoreColor(selectedCandidate.atsScore)}`}>
+                    {selectedCandidate.atsScore}% Fit
+                  </span>
+                </div>
+                <p className="text-xs text-white/80 leading-relaxed italic">
+                  &ldquo;{selectedCandidate.summary}&rdquo;
+                </p>
+              </div>
+
+              {/* Skills */}
+              <div className="flex flex-col gap-1.5">
+                <h4 className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Extracted Stack</h4>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {selectedCandidate.topSkills.map((skill, sIdx) => (
+                    <span 
+                      key={sIdx} 
+                      className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-white/80 border border-white/5"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pros */}
+              <div className="flex flex-col gap-2">
+                <h4 className="text-[9px] font-bold text-emerald-400/90 uppercase tracking-widest flex items-center gap-1">
+                  <CheckCircle2 size={12} /> Key Highlights
+                </h4>
+                <ul className="flex flex-col gap-1.5">
+                  {selectedCandidate.pros.map((pro, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-xs text-white/80 bg-emerald-950/5 border border-emerald-950/10 p-2.5 rounded-lg leading-relaxed">
+                      <Check size={12} className="text-emerald-400 shrink-0 mt-0.5" />
+                      <span>{pro}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Cons */}
+              <div className="flex flex-col gap-2">
+                <h4 className="text-[9px] font-bold text-rose-400/90 uppercase tracking-widest flex items-center gap-1">
+                  <AlertTriangle size={12} /> Observed Gaps
+                </h4>
+                <ul className="flex flex-col gap-1.5">
+                  {selectedCandidate.cons.map((con, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-xs text-white/80 bg-rose-950/5 border border-rose-950/10 p-2.5 rounded-lg leading-relaxed">
+                      <X size={12} className="text-rose-400 shrink-0 mt-0.5" />
+                      <span>{con}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-3.5 pr-1 min-h-0 no-scrollbar">
+              <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-amber-400" />
+                    AI Tailored Interview Kit
+                  </h4>
+                  <p className="text-[10px] text-white/50 mt-0.5">5 questions targeting background, gaps & tech transitions</p>
+                </div>
+                {selectedCandidate.interviewQuestions && selectedCandidate.interviewQuestions.length > 0 && (
+                  <button
+                    onClick={() => copyToClipboard(selectedCandidate.interviewQuestions!.map((q, i) => `${i + 1}. ${q}`).join('\n\n'))}
+                    className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-semibold transition flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedKit ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                    {copiedKit ? 'Copied All' : 'Copy All'}
+                  </button>
+                )}
+              </div>
+
+              {selectedCandidate.interviewQuestions && selectedCandidate.interviewQuestions.length > 0 ? (
+                selectedCandidate.interviewQuestions.map((q, qIdx) => (
+                  <div key={qIdx} className="p-3.5 rounded-xl bg-white/3 border border-white/5 flex flex-col gap-2 relative group hover:border-white/20 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Question 0{qIdx + 1}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => copyToClipboard(q, qIdx)}
+                          className="p-1 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                          title="Copy Question"
+                        >
+                          {copiedQuestionIndex === qIdx ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        </button>
+                        <button
+                          onClick={() => speechSupported && speakText(q)}
+                          className="p-1 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                          title="Read Question Aloud"
+                        >
+                          <Volume2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-white/90 leading-relaxed font-medium">
+                      {q}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="p-6 text-center border border-dashed border-white/10 rounded-xl text-xs text-white/40">
+                  No customized interview questions generated for this profile yet. Re-run ranking to populate questions.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Footer Actions */}
           <div className="border-t border-white/10 pt-4 flex gap-3 shrink-0">
@@ -934,6 +1160,178 @@ export default function Home() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Candidate Outreach Automation Modal Overlay */}
+      {outreachModalOpen && selectedCandidateIds.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-2xl liquid-glass rounded-2xl p-6 flex flex-col gap-4 relative animate-in fade-in-50 zoom-in-95 duration-200 max-h-[90vh] overflow-hidden">
+            <button 
+              onClick={() => setOutreachModalOpen(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg border border-white/10 text-white/40 hover:text-white transition cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-2 border-b border-white/10 pb-3 shrink-0">
+              <Mail size={18} className="text-white" />
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Candidate Outreach Automation</h3>
+                <p className="text-[10px] text-white/50">Generate personalized email invitations for {selectedCandidateIds.length} shortlisted candidates</p>
+              </div>
+            </div>
+
+            {/* Template Selector */}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Select Email Template</span>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setOutreachTemplate('first_round')}
+                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col gap-0.5 ${
+                    outreachTemplate === 'first_round'
+                      ? 'border-white bg-white/15 text-white'
+                      : 'border-white/5 bg-white/3 text-white/60 hover:border-white/20'
+                  }`}
+                >
+                  <span className="text-xs font-bold">First-Round Interview</span>
+                  <span className="text-[9px] text-white/40">Schedule 1-on-1 discussion</span>
+                </button>
+                <button
+                  onClick={() => setOutreachTemplate('tech_screen')}
+                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col gap-0.5 ${
+                    outreachTemplate === 'tech_screen'
+                      ? 'border-white bg-white/15 text-white'
+                      : 'border-white/5 bg-white/3 text-white/60 hover:border-white/20'
+                  }`}
+                >
+                  <span className="text-xs font-bold">Tech Screening</span>
+                  <span className="text-[9px] text-white/40">Technical architecture review</span>
+                </button>
+                <button
+                  onClick={() => setOutreachTemplate('rejection')}
+                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col gap-0.5 ${
+                    outreachTemplate === 'rejection'
+                      ? 'border-white bg-white/15 text-white'
+                      : 'border-white/5 bg-white/3 text-white/60 hover:border-white/20'
+                  }`}
+                >
+                  <span className="text-xs font-bold">Talent Pool Update</span>
+                  <span className="text-[9px] text-white/40">Keep in future network</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Candidate Tab Selection Pill Bar */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0 no-scrollbar">
+              {selectedCandidateIds.map((id) => {
+                const c = candidates.find(item => item.id === id);
+                if (!c) return null;
+                const isSelected = (selectedOutreachCandidateId || selectedCandidateIds[0]) === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setSelectedOutreachCandidateId(id)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-white text-black font-bold'
+                        : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected Candidate Active Draft Box */}
+            {(() => {
+              const activeId = selectedOutreachCandidateId || selectedCandidateIds[0];
+              const candidate = candidates.find(c => c.id === activeId);
+              if (!candidate) return null;
+
+              const { candidateEmail, subject, body } = generateOutreachEmail(candidate, outreachTemplate);
+
+              return (
+                <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto pr-1 no-scrollbar">
+                  <div className="p-3.5 rounded-xl bg-white/3 border border-white/5 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-white/40 uppercase">To:</span>
+                        <span className="font-mono text-white/90">{candidateEmail}</span>
+                      </div>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border border-white/5 ${getScoreColor(candidate.atsScore)}`}>
+                        {candidate.atsScore}% Fit
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-[10px] font-bold text-white/40 uppercase">Subject:</span>
+                      <span className="font-medium text-white">{subject}</span>
+                    </div>
+
+                    <div className="mt-1 pt-2 border-t border-white/5">
+                      <textarea
+                        readOnly
+                        value={body}
+                        rows={7}
+                        className="w-full glass-input rounded-xl p-3 text-xs leading-relaxed resize-none font-mono text-white/80"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actions for active candidate */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={`mailto:${candidateEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2.5 rounded-xl bg-white text-black font-bold text-xs hover:bg-white/90 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <Send size={13} />
+                      Open Mail Client (`mailto:`)
+                    </a>
+
+                    <button
+                      onClick={() => {
+                        copyToClipboard(`Subject: ${subject}\n\n${body}`);
+                        setCopiedDraft(true);
+                        setTimeout(() => setCopiedDraft(false), 2000);
+                      }}
+                      className="px-4 py-2.5 rounded-xl border border-white/10 text-xs font-semibold text-white hover:bg-white/5 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedDraft ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                      {copiedDraft ? 'Copied' : 'Copy Single Draft'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Footer Bulk Copy */}
+            <div className="border-t border-white/10 pt-3 flex justify-between items-center shrink-0">
+              <span className="text-[10px] text-white/40">Ready for CRM / ATS Email Dispatch</span>
+              <button
+                onClick={() => {
+                  const allDrafts = selectedCandidateIds.map(id => {
+                    const c = candidates.find(item => item.id === id);
+                    if (!c) return '';
+                    const { candidateEmail, subject, body } = generateOutreachEmail(c, outreachTemplate);
+                    return `TO: ${c.name} <${candidateEmail}>\nSUBJECT: ${subject}\n\n${body}\n----------------------------------------`;
+                  }).join('\n\n');
+                  
+                  copyToClipboard(allDrafts);
+                  setCopiedBatch(true);
+                  setTimeout(() => setCopiedBatch(false), 2000);
+                }}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                {copiedBatch ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                {copiedBatch ? 'Copied All Batch Drafts!' : `Copy All (${selectedCandidateIds.length}) Drafts`}
+              </button>
+            </div>
           </div>
         </div>
       )}

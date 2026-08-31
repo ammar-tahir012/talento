@@ -51,6 +51,7 @@ export async function POST(req: Request) {
             properties: {
               id: { type: 'STRING', description: 'The unique candidate ID matching the input' },
               name: { type: 'STRING', description: 'The candidate\'s full name, extracted from the resume' },
+              email: { type: 'STRING', description: 'The candidate\'s exact email address extracted from the resume text (e.g. candidate@gmail.com). If not found, return empty string.' },
               rank: { type: 'INTEGER', description: 'Assigned rank order, starting at 1 for the best candidate' },
               atsScore: { type: 'INTEGER', description: 'ATS match score from 0 to 100' },
               yearsOfExperience: { type: 'INTEGER', description: 'Approximate total years of experience' },
@@ -72,9 +73,14 @@ export async function POST(req: Request) {
               summary: {
                 type: 'STRING',
                 description: 'A 1-2 sentence summary of their profile and suitability'
+              },
+              interviewQuestions: {
+                type: 'ARRAY',
+                items: { type: 'STRING' },
+                description: '5 customized technical and behavioral interview questions tailored to the candidate background, past internships, tech transitions, red flags, or missing skill gaps.'
               }
             },
-            required: ['id', 'name', 'rank', 'atsScore', 'yearsOfExperience', 'pros', 'cons', 'topSkills', 'summary']
+            required: ['id', 'name', 'email', 'rank', 'atsScore', 'yearsOfExperience', 'pros', 'cons', 'topSkills', 'summary', 'interviewQuestions']
           }
         }
       },
@@ -112,7 +118,7 @@ ${r.rawText}
 `).join('\n')}
 
 Evaluate each resume thoroughly. For each candidate:
-1. Extract their name from the text.
+1. Extract their full name and their exact email address (Gmail, Outlook, Yahoo, etc.) from the resume text. If no email is present, leave it blank.
 2. Estimate their total years of professional experience.
    CRITICAL EXPERIENCE CALCULATION RULE: Not all candidates explicitly write "X years of experience". You MUST analyze all listed projects, employment history, internships, and dates. Calculate experience by taking the start year of their earliest listed project or role and subtracting it from the end year of their latest project/role (or current year 2026). For instance, if projects span 2022 to 2026, calculate 4 years. Never default to 0 if project dates or work history are present on the CV.
 3. Determine their top skills.
@@ -122,6 +128,7 @@ Evaluate each resume thoroughly. For each candidate:
 7. Assign an ATS score from 0 to 100 representing their overall match against BOTH the Job Description and the optional HR Voice Command / Special criteria.
 8. Rank them from best match (Rank 1) to worst match.
 CRITICAL RULE: Higher ranked candidates (Rank 1) MUST have a higher ATS score than lower ranked candidates. The ATS scores MUST be strictly descending: Rank 1 > Rank 2 > Rank 3.
+9. Generate 5 customized technical and behavioral interview questions tailored specifically to that candidate's background, past internships, technology transitions, red flags, or missing skill gaps (e.g. "Ask about their transition from C# to Node.js during their Vision Point internship").
 
 Make sure the "summaryResponse" is a natural, conversational 2-3 sentence overview that can be spoken out loud via text-to-speech.
 
